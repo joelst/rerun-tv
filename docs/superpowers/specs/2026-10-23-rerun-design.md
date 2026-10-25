@@ -72,8 +72,10 @@ resume starts the appropriate current/replacement station. Sign-out cancels and 
 
 Direct playback is preferred for the supported container/video/audio policy in `Playback`.
 Music formats outside the direct-play policy (or missing format metadata) use the Plex audio
-universal transcoder with AAC/HLS output. A failed direct music stream retries through audio
-conversion once per airing; conversion failures show an error instead of a silent Up Next loop.
+music universal transcoder with HTTP/MP3 output, explicitly loaded as progressive audio despite
+the endpoint's `.m3u8` suffix. A failed direct music stream retries through audio
+conversion once per airing; conversion failures show a player error code and available HTTP status
+instead of a silent Up Next loop. Diagnostics omit raw exception messages, URLs and credentials.
 Multi-audio selection uses an explicit Plex stream ID. Audio-only conversion allows video copy without
 1080p/bitrate caps; required video conversion retains its compatibility limits.
 Subtitles can use external or embedded text, otherwise Plex burn-in.

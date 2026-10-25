@@ -10,18 +10,22 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.common.MimeTypes
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import okhttp3.OkHttpClient
 import com.rerun.core.catalog.Lineup
 import com.rerun.core.model.MediaItem
 import com.rerun.core.model.MediaKind
 import com.rerun.core.plex.PlaybackPlan
 import com.rerun.core.plex.Playback
+import com.rerun.core.plex.TranscodeFormat
 import com.rerun.core.plex.ServerUri
 import com.rerun.core.plex.selectSubtitle
 import com.rerun.core.plex.subtitleLanguageCode
@@ -139,6 +143,11 @@ class TunerEngine(
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
+                    val httpStatus = generateSequence<Throwable>(error) { it.cause }
+                        .filterIsInstance<HttpDataSource.InvalidResponseCodeException>()
+                        .firstOrNull()?.responseCode
+                    val diagnostic = error.errorCodeName + (httpStatus?.let { "; HTTP $it" } ?: "")
+                    android.util.Log.e("TunerEngine", "Playback failed ($diagnostic)")
                     val id = _state.value.channel?.id
                     if (_state.value.item?.kind == MediaKind.TRACK && !transcoded && !audioFallback && id != null) {
                         audioFallback = true
@@ -149,7 +158,7 @@ class TunerEngine(
                     } else difficulties(
                         if (convertingHdr) HDR_HELP else if (normalizingAudio) NORMALIZATION_HELP
                         else if (_state.value.item?.kind == MediaKind.TRACK)
-                            "Music playback failed. Check the Plex server connection and audio transcoder."
+                            "Music playback failed ($diagnostic). Check the Plex server connection and audio transcoder."
                         else "Playback failed. Retrying shortly.",
                     )
                 }
@@ -368,7 +377,15 @@ class TunerEngine(
                     is PlaybackPlan.Transcoded -> {
                         transcoded = true
                         applySubtitles(player.currentTracks)
-                        player.setMediaSource(HlsMediaSource.Factory(http).createMediaSource(ExoItem.fromUri(plan.url)))
+                        val source = when (plan.format) {
+                            TranscodeFormat.HLS ->
+                                HlsMediaSource.Factory(http).createMediaSource(ExoItem.fromUri(plan.url))
+                            TranscodeFormat.MP3 ->
+                                ProgressiveMediaSource.Factory(http).createMediaSource(
+                                    ExoItem.Builder().setUri(plan.url).setMimeType(MimeTypes.AUDIO_MPEG).build(),
+                                )
+                        }
+                        player.setMediaSource(source)
                         player.prepare()
                     }
                     is PlaybackPlan.UpNext -> {

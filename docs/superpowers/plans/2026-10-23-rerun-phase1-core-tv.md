@@ -58,7 +58,7 @@ Use `PerformanceWorkloadTest` and its XML output to reproduce the workload; timi
 - [ ] Verify HDR color rendering, tone mapping, fallback errors and Dolby Vision limitations on affected TVs.
 - [ ] With Plex Pass, server support and analyzed program/ad audio, verify normalization eligibility, output loudness consistency and server transcode load.
 - [ ] Measure target-TV frame rate, CPU, memory, channel-change latency and long-running playback.
-- [ ] Check music stations with MP3/MPEG, FLAC, M4A and formats requiring Plex audio conversion; songs should play instead of cycling silent countdowns, including after a failed direct decoder attempt.
+- [ ] Check music stations with MP3/MPEG, FLAC, M4A and non-DRM WMA requiring Plex HTTP/MP3 conversion; songs should play instead of cycling silent countdowns, including after a failed direct decoder attempt. General multi-device testing has improved performance and exposed regressions; the latest WMA correction still needs a device retest.
 
 Unimplemented roadmap ideas (HDHomeRun/live TV, TMDb enrichment, automatic clip splitting,
 ad age/content filtering and idle timeout) are not acceptance requirements for this PR.

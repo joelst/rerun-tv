@@ -126,16 +126,18 @@ class PlaybackTest {
             val plan = planPlayback(track("9").copy(container = container), base, "c", "s", 15_500)
             assertTrue(plan is PlaybackPlan.Transcoded)
             val url = (plan as PlaybackPlan.Transcoded).url
-            assertTrue("/audio/:/transcode/universal/start.m3u8?" in url)
+            assertTrue("/music/:/transcode/universal/start.m3u8?" in url)
+            assertEquals(TranscodeFormat.MP3, plan.format)
+            assertTrue("&protocol=http&" in url)
             assertTrue("path=%2Flibrary%2Fmetadata%2F9&" in url)
             assertTrue("&offset=15&" in url)
-            assertTrue("&audioCodec=aac&" in url)
+            assertTrue("&audioCodec=mp3&" in url)
             assertFalse("videoResolution" in url)
             assertFalse("normalizeLoudness" in url)
             assertFalse("X-Plex-Token" in url)
         }
         val fallback = planPlayback(track("9"), base, "c", "s", 0, forceTranscode = true)
-        assertTrue(fallback is PlaybackPlan.Transcoded && "/audio/" in fallback.url)
+        assertTrue(fallback is PlaybackPlan.Transcoded && "/music/" in fallback.url && fallback.format == TranscodeFormat.MP3)
         assertEquals(PlaybackPlan.UpNext("audio"), planPlayback(track("../9"), base, "c", "s", 0, forceTranscode = true))
     }
 

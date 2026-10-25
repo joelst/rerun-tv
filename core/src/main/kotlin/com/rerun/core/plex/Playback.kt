@@ -4,11 +4,13 @@ import com.rerun.core.model.MediaItem
 import com.rerun.core.model.MediaKind
 import java.net.URLEncoder
 
+enum class TranscodeFormat { HLS, MP3 }
+
 sealed interface PlaybackPlan {
     /** Play the file directly and seek the player to [startMs]. */
     data class Direct(val url: String, val startMs: Long) : PlaybackPlan
     /** Plex transcodes; the start offset is already in the URL, so the player starts at 0. */
-    data class Transcoded(val url: String) : PlaybackPlan
+    data class Transcoded(val url: String, val format: TranscodeFormat = TranscodeFormat.HLS) : PlaybackPlan
     /** Nothing playable for this slot: show the Up Next card. */
     data class UpNext(val reason: String) : PlaybackPlan
 }
@@ -44,9 +46,10 @@ object Playback {
     fun audioTranscodeUrl(base: String, item: MediaItem, clientId: String, session: String, offsetMs: Long): String? {
         val meta = "/library/metadata/${item.key}"
         if (!ServerUri.isAcceptable(base) || item.key.isBlank() || !ServerUri.isLibraryPath(meta)) return null
-        return base.trimEnd('/') + "/audio/:/transcode/universal/start.m3u8" +
-            "?path=${enc(meta)}&mediaIndex=0&partIndex=0&protocol=hls" +
-            "&offset=${offsetMs / 1000}&fastSeek=1&directPlay=0&directStream=0&audioCodec=aac" +
+        // Plex's music HTTP endpoint returns MP3 bytes despite the .m3u8 suffix.
+        return base.trimEnd('/') + "/music/:/transcode/universal/start.m3u8" +
+            "?path=${enc(meta)}&mediaIndex=0&partIndex=0&protocol=http" +
+            "&offset=${offsetMs / 1000}&fastSeek=1&directPlay=0&directStream=0&audioCodec=mp3" +
             "&session=${enc(session)}&X-Plex-Session-Identifier=${enc(session)}" +
             "&X-Plex-Client-Identifier=${enc(clientId)}&X-Plex-Product=Rerun&X-Plex-Platform=Android"
     }
@@ -114,7 +117,7 @@ fun planPlayback(
         }
         val url = Playback.audioTranscodeUrl(base, item, clientId, session, offsetMs)
             ?: return PlaybackPlan.UpNext("audio")
-        return PlaybackPlan.Transcoded(url)
+        return PlaybackPlan.Transcoded(url, TranscodeFormat.MP3)
     }
     if (!forceTranscode && !forceSdr && !normalizeLoudness && audioStreamId == null && Playback.canDirectPlay(item)) {
         val url = Playback.directUrl(base, item) ?: return PlaybackPlan.UpNext("server")

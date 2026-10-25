@@ -84,9 +84,12 @@ Vintage commercials are generally still under copyright. Keep downloaded copies 
 ## Music playback troubleshooting
 
 Common audio formats play directly, including Plex's `mpeg` container label for MP3.
-Other or unknown formats request audio-only AAC transcoding from Plex instead of silently
+Other or unknown formats, including non-DRM WMA, request audio-only MP3 transcoding from Plex instead of silently
 counting down through unplayed songs. A failed direct audio stream retries once through that
 audio transcoder; if conversion also fails, the player displays a connection/transcoder error.
+The music HTTP endpoint returns a progressive audio stream even though its URL ends in `.m3u8`;
+Rerun handles it as MP3 rather than an HLS playlist. Errors show a player error code and HTTP
+status when available, without request URLs or credentials.
 The song remains aligned to its scheduled position, and menus stay muted.
 Plex must be able to read and transcode the source file; this fallback still needs live-server validation.
 

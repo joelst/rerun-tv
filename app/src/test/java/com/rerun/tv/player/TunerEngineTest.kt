@@ -7,6 +7,10 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.C
+import androidx.media3.common.MimeTypes
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.common.Format
 import androidx.media3.common.TrackGroup
 import androidx.media3.exoplayer.ExoPlayer
@@ -114,11 +118,16 @@ class TunerEngineTest {
         engine.tune("music:jazz")
         await { sources.size == 1 }
         val uri = sources.single().mediaItem.localConfiguration!!.uri
-        assertEquals("/audio/:/transcode/universal/start.m3u8", uri.path)
+        assertEquals("/music/:/transcode/universal/start.m3u8", uri.path)
+        assertEquals("http", uri.getQueryParameter("protocol"))
+        assertEquals("mp3", uri.getQueryParameter("audioCodec"))
+        assertTrue(sources.single() is ProgressiveMediaSource)
+        assertEquals(MimeTypes.AUDIO_MPEG, sources.single().mediaItem.localConfiguration!!.mimeType)
         assertEquals("60", uri.getQueryParameter("offset"))
         assertEquals(Phase.TUNING, engine.state.value.phase)
         listener.onPlaybackStateChanged(Player.STATE_READY)
         assertEquals(Phase.PLAYING, engine.state.value.phase)
+        verify(player, never()).seekTo(anyLong())
         verify(api, never()).get(anyString(), anyString(), anyString(), isNull(), isNull())
     }
 
@@ -136,13 +145,22 @@ class TunerEngineTest {
         val error = PlaybackException("Test", null, PlaybackException.ERROR_CODE_DECODING_FAILED)
         listener.onPlayerError(error)
         await { sources.size == 2 }
-        assertEquals("/audio/:/transcode/universal/start.m3u8", sources.last().mediaItem.localConfiguration!!.uri.path)
+        assertEquals("/music/:/transcode/universal/start.m3u8", sources.last().mediaItem.localConfiguration!!.uri.path)
         listener.onPlaybackStateChanged(Player.STATE_READY)
         assertEquals(Phase.PLAYING, engine.state.value.phase)
         verify(player, never()).setVolume(1f)
-        listener.onPlayerError(error)
+        val httpError = HttpDataSource.InvalidResponseCodeException(
+            400, "Bad Request", null, emptyMap(),
+            DataSpec(android.net.Uri.parse("http://127.0.0.1/private?X-Plex-Token=do-not-display")), byteArrayOf(),
+        )
+        listener.onPlayerError(PlaybackException(
+            "Do not display raw request", httpError, PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+        ))
         assertEquals(Phase.DIFFICULTIES, engine.state.value.phase)
         assertTrue(engine.state.value.message!!.contains("audio transcoder"))
+        assertTrue(engine.state.value.message!!.contains("ERROR_CODE_IO_BAD_HTTP_STATUS; HTTP 400"))
+        assertFalse(engine.state.value.message!!.contains("do-not-display"))
+        assertFalse(engine.state.value.message!!.contains("127.0.0.1"))
         assertEquals(2, sources.size)
         val now = System.currentTimeMillis()
         `when`(repo.entries(anyString(), anyLong(), anyLong())).thenReturn(listOf(
